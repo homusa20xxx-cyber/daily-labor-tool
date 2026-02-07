@@ -2,84 +2,297 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>日次 人件費管理ツール（BASE J）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>日次 人件費管理ツール（BASE K）</title>
 <style>
-/* ===== BASE I 既存 ===== */
-body { font-family: "Segoe UI", sans-serif; background:#f4f6f8; padding:20px; }
-.box { background:#fff; padding:15px; border-radius:10px; margin-bottom:15px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
-input, select { padding:6px; margin:4px; }
-button { padding:6px 12px; border:none; border-radius:6px; cursor:pointer; }
-.add-btn { background:#3498db; color:#fff; }
-.calc-btn { background:#2ecc71; color:#fff; font-size:16px; }
-.pattern-btn { background:#9b59b6; color:#fff; }
-.delete-btn { background:#e74c3c; color:#fff; }
-.row-delete { background:#c0392b; color:#fff; }
-.reset-btn { background:#555; color:#fff; margin-left:10px; }
-table { border-collapse: collapse; width:100%; }
-th,td { padding:6px; border:1px solid #ccc; text-align:center; }
-th { background:#eee; }
-.result { font-size:18px; font-weight:bold; }
-.good { color:#2ecc71; }
-.bad { color:#e74c3c; }
-.restInput { width:70px; text-align:center; }
-.restBtn { width:28px; height:28px; padding:0; margin:0 0 0 4px; border-radius:6px; background:#777; color:#fff; font-weight:bold; line-height:28px; }
-.restBtn:hover { filter:brightness(1.1); }
-.restWrap { display:inline-flex; align-items:center; justify-content:center; gap:4px; }
-.restBtnCol { display:flex; flex-direction:column; gap:4px; }
+/* =========================
+   BASE K (UI rebuild for iPhone Safari)
+   ★既存機能は維持。②アルバイト追加導線だけ改善（案A+B）
+   ========================= */
 
-/* 売上±10万ボタン */
-.salesBtn { background:#777; color:#fff; border-radius:6px; padding:6px 10px; margin-left:6px; }
-.salesBtn:hover { filter:brightness(1.1); }
+/* ===== iPhone向け基礎 ===== */
+:root{
+  --bg:#f4f6f8;
+  --card:#fff;
+  --text:#111;
+  --muted:#555;
+  --border:#d7dbe0;
+  --shadow:0 2px 10px rgba(0,0,0,0.06);
+  --r:12px;
 
-/* ===== 予約カウント（統合部） ===== */
-.row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
-.small { font-size: 12px; color:#555; }
+  --blue:#3498db;
+  --green:#2ecc71;
+  --purple:#9b59b6;
+  --red:#e74c3c;
+  --darkred:#c0392b;
+  --gray:#666;
+  --mid:#777;
+
+  --tap:44px; /* iPhoneの押しやすさ */
+}
+
+*{ box-sizing:border-box; }
+html, body{ height:100%; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  padding:14px;
+  margin:0;
+  -webkit-text-size-adjust:100%;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+}
+
+h1 { margin:0 0 12px; font-size:22px; line-height:1.25; }
+
+.box {
+  background:var(--card);
+  padding:14px;
+  border-radius:var(--r);
+  margin-bottom:14px;
+  box-shadow:var(--shadow);
+}
+
+/* iOS Safari: 16px未満だとズームが起きやすい */
+input, select, button { font-size:16px; }
+
+input, select {
+  padding:10px 10px;
+  margin:4px 0;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:#fff;
+  min-height:var(--tap);
+}
+
+button {
+  padding:10px 12px;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  min-height:var(--tap);
+  line-height:1;
+  font-weight:700;
+  white-space:nowrap;
+}
+
+/* ===== 既存クラス（色味は維持しつつ押しやすく） ===== */
+.add-btn { background:var(--blue); color:#fff; }
+.calc-btn { background:var(--green); color:#fff; font-size:16px; }
+.pattern-btn { background:var(--purple); color:#fff; }
+.delete-btn { background:var(--red); color:#fff; }
+.row-delete { background:var(--darkred); color:#fff; }
+.reset-btn { background:#555; color:#fff; margin-left:0; }
+.muted-btn { background:var(--gray); color:#fff; }
+.ok-btn { background:var(--green); color:#fff; }
+
+.result { font-size:18px; font-weight:800; line-height:1.4; }
+.good { color:var(--green); font-weight:800; }
+.bad { color:var(--red); font-weight:800; }
+.warn { color:var(--red); font-weight:800; }
+
+.small { font-size:12px; color:var(--muted); line-height:1.4; }
 .right { text-align:right; }
 .left { text-align:left; }
 .nowrap { white-space:nowrap; }
-.muted-btn { background:#666; color:#fff; }
-.ok-btn { background:#2ecc71; color:#fff; }
-.warn { color:#e74c3c; font-weight:bold; }
+
+/* ===== レイアウト補助 ===== */
+.grid2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+  align-items:end;
+}
+@media (max-width: 720px){
+  .grid2{ grid-template-columns: 1fr; }
+}
+
+.row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.field{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  flex: 1 1 220px;
+  min-width: 160px;
+}
+.field label{
+  font-size:12px;
+  color:var(--muted);
+  margin-left:4px;
+}
+.actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+}
+.actions > button{
+  flex: 1 1 180px;
+}
+
+/* ===== テーブルはスマホで横スクロール（崩れ防止） ===== */
+.tableWrap{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  border-radius:10px;
+  border:1px solid rgba(0,0,0,0.06);
+}
+table { border-collapse: collapse; width:100%; background:#fff; }
+th,td { padding:10px 8px; border:1px solid #ccc; text-align:center; }
+th { background:#eee; }
+.tableWrap table{ min-width: 920px; }
+
+/* ===== 売上±10万ボタン（既存） ===== */
+.salesBtn { background:var(--mid); color:#fff; border-radius:10px; padding:10px 12px; }
+.salesBtn:hover { filter:brightness(1.06); }
+
+/* ===== 休憩ボタン（既存） ===== */
+.restInput { width:80px; text-align:center; }
+.restBtn {
+  width:34px; height:34px;
+  padding:0;
+  margin:0;
+  border-radius:10px;
+  background:var(--mid);
+  color:#fff;
+  font-weight:900;
+  line-height:34px;
+}
+.restBtn:hover { filter:brightness(1.06); }
+.restWrap { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+.restBtnCol { display:flex; flex-direction:column; gap:6px; }
+
+/* ===== 区切り線（既存） ===== */
 hr.sep { border:none; border-top:1px solid #ddd; margin:12px 0; }
+
+/* ===== 主要入力を少し見やすく ===== */
+.sectionTitle{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.sectionTitle h3{ margin:0; font-size:16px; }
+
+/* =========================
+   ★追加（案A + 案B）アルバイト追加UI
+   ========================= */
+.quickCard{
+  background: #f7f9fb;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 10px;
+}
+.quickGrid{
+  display:grid;
+  grid-template-columns: 1fr 120px;
+  gap:10px;
+  align-items:end;
+}
+@media (max-width: 520px){
+  .quickGrid{ grid-template-columns: 1fr; }
+}
+.chipsRow{
+  display:flex;
+  gap:10px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  padding: 10px 2px 4px;
+  margin-top: 6px;
+}
+.chip{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border:1px solid var(--border);
+  border-radius: 999px;
+  background:#fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  white-space:nowrap;
+}
+.chipName{ font-weight:800; }
+.chipBtns{ display:flex; gap:8px; }
+.chipBtns button{
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+}
+.chipBtns .b1{ background: var(--blue); color:#fff; }
+.chipBtns .b2{ background: var(--purple); color:#fff; }
+
+.hint{
+  margin-top:6px;
+  font-size:12px;
+  color: var(--muted);
+  line-height:1.4;
+}
 </style>
 </head>
 <body>
 
 <h1>📊 日次 人件費管理ツール</h1>
 
+<!-- ===== 基本入力 ===== -->
 <div class="box">
-見込み売上：
-<input type="number" id="sales" value="0"> 円
-<button type="button" class="salesBtn" onclick="adjustSales(100000)">＋10万</button>
-<button type="button" class="salesBtn" onclick="adjustSales(-100000)">－10万</button>
-　
-共通時給：
-<input type="number" id="wage" value="1200" onchange="saveWage()"> 円
-<br>
-社員（ホール）：
-<input type="number" id="staffHall" value="0"> 人　
-社員（キッチン）：
-<input type="number" id="staffKitchen" value="0"> 人　
-（各 ×16,500円）
-<br>
-🎯 目標人件費率：
-<input type="number" id="targetRate" value="25" step="0.1" onchange="saveTargetRate()"> %
+  <div class="grid2">
+    <div class="field">
+      <label>見込み売上（円）</label>
+      <div class="actions" style="flex:1 1 auto;">
+        <input type="number" id="sales" value="0" style="flex:1 1 240px; min-width:180px;">
+        <button type="button" class="salesBtn" onclick="adjustSales(100000)">＋10万</button>
+        <button type="button" class="salesBtn" onclick="adjustSales(-100000)">－10万</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>共通時給（円）</label>
+      <input type="number" id="wage" value="1200" onchange="saveWage()">
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="field">
+      <label>社員（ホール）人数</label>
+      <input type="number" id="staffHall" value="0">
+      <div class="small">（各 ×16,500円）</div>
+    </div>
+
+    <div class="field">
+      <label>社員（キッチン）人数</label>
+      <input type="number" id="staffKitchen" value="0">
+      <div class="small">（各 ×16,500円）</div>
+    </div>
+  </div>
+
+  <div class="field" style="max-width:260px;">
+    <label>🎯 目標人件費率（%）</label>
+    <input type="number" id="targetRate" value="25" step="0.1" onchange="saveTargetRate()">
+  </div>
 </div>
 
 <!-- ===== 予約カウント（統合） ===== -->
 <div class="box">
-  <h3>🧾 予約カウント（見込み売上の内訳）</h3>
+  <div class="sectionTitle">
+    <h3>🧾 予約カウント（見込み売上の内訳）</h3>
+  </div>
 
   <div class="row">
-    席のみ 見込み客単価：
-    <input type="number" id="rc_seatUnit" value="4000" step="1"> 円 / 人
-    <button class="ok-btn" type="button" onclick="rc_saveSeatUnit()">保存</button>
+    <div class="field" style="flex: 1 1 240px;">
+      <label>席のみ 見込み客単価（円/人）</label>
+      <input type="number" id="rc_seatUnit" value="4000" step="1">
+    </div>
 
-    <button class="pattern-btn" type="button" onclick="rc_applyTotalToSales()">↪ 予約合計を見込み売上へ反映</button>
+    <div class="actions" style="flex: 1 1 320px;">
+      <button class="ok-btn" type="button" onclick="rc_saveSeatUnit()">保存</button>
+      <button class="pattern-btn" type="button" onclick="rc_applyTotalToSales()">↪ 予約合計を見込み売上へ反映</button>
+    </div>
 
-    <label class="small">
-      <input type="checkbox" id="rc_autoApply" onchange="rc_onToggleAutoApply()">
+    <label class="small" style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+      <input type="checkbox" id="rc_autoApply" onchange="rc_onToggleAutoApply()" style="width:20px; height:20px;">
       自動反映
     </label>
   </div>
@@ -90,57 +303,88 @@ hr.sep { border:none; border-top:1px solid #ddd; margin:12px 0; }
 
   <hr class="sep">
 
-  <h3>① コース登録（保存）</h3>
-  <div class="row">
-    コース名 <input id="rc_courseName" placeholder="例：飲み放題付きコース">
-    金額 <input type="number" id="rc_coursePrice" placeholder="例：5500"> 円 / 人
-    <button class="add-btn" type="button" onclick="rc_addCourse()">追加</button>
-    <button class="muted-btn" type="button" onclick="rc_clearAllCourses()">🗑 コース一括削除</button>
+  <div class="sectionTitle">
+    <h3>① コース登録（保存）</h3>
   </div>
 
-  <table id="rc_courseTable">
-    <tr>
-      <th>コース名</th>
-      <th>金額（円/人）</th>
-      <th>予約に追加</th>
-      <th>操作</th>
-    </tr>
-  </table>
+  <div class="row">
+    <div class="field" style="flex: 1 1 260px;">
+      <label>コース名</label>
+      <input id="rc_courseName" placeholder="例：飲み放題付きコース">
+    </div>
+
+    <div class="field" style="max-width:220px;">
+      <label>金額（円/人）</label>
+      <input type="number" id="rc_coursePrice" placeholder="例：5500">
+    </div>
+
+    <div class="actions" style="flex: 1 1 320px;">
+      <button class="add-btn" type="button" onclick="rc_addCourse()">追加</button>
+      <button class="muted-btn" type="button" onclick="rc_clearAllCourses()">🗑 コース一括削除</button>
+    </div>
+  </div>
+
+  <div class="tableWrap">
+    <table id="rc_courseTable">
+      <tr>
+        <th>コース名</th>
+        <th>金額（円/人）</th>
+        <th>予約に追加</th>
+        <th>操作</th>
+      </tr>
+    </table>
+  </div>
 
   <hr class="sep">
 
-  <h3>② 予約入力（※保存しない）</h3>
-  <div class="row">
-    予約タイプ
-    <select id="rc_resType" onchange="rc_syncResTypeUI()">
-      <option value="course">コース</option>
-      <option value="seat">席のみ</option>
-    </select>
-
-    <span id="rc_coursePickWrap">
-      コース
-      <select id="rc_resCourse"></select>
-    </span>
-
-    人数 <input type="number" id="rc_resPeople" value="2" min="1" style="width:80px;">
-    メモ <input id="rc_resMemo" placeholder="例：19:00 / 会社宴会" style="min-width:240px;">
-
-    <button class="add-btn" type="button" onclick="rc_addReservation()">＋ 予約追加</button>
-    <button class="muted-btn" type="button" onclick="rc_clearAllReservations()">🗑 予約一括削除</button>
+  <div class="sectionTitle">
+    <h3>② 予約入力（※保存しない）</h3>
   </div>
 
-  <table id="rc_resTable">
-    <tr>
-      <th>#</th>
-      <th>タイプ</th>
-      <th>内容</th>
-      <th>人数</th>
-      <th>単価（円/人）</th>
-      <th>小計（円）</th>
-      <th>メモ</th>
-      <th>削除</th>
-    </tr>
-  </table>
+  <div class="row">
+    <div class="field" style="max-width:220px;">
+      <label>予約タイプ</label>
+      <select id="rc_resType" onchange="rc_syncResTypeUI()">
+        <option value="course">コース</option>
+        <option value="seat">席のみ</option>
+      </select>
+    </div>
+
+    <div class="field" id="rc_coursePickWrap" style="max-width:380px;">
+      <label>コース</label>
+      <select id="rc_resCourse"></select>
+    </div>
+
+    <div class="field" style="max-width:160px;">
+      <label>人数</label>
+      <input type="number" id="rc_resPeople" value="2" min="1">
+    </div>
+
+    <div class="field" style="flex: 1 1 260px;">
+      <label>メモ</label>
+      <input id="rc_resMemo" placeholder="例：19:00 / 会社宴会">
+    </div>
+
+    <div class="actions" style="flex: 1 1 320px;">
+      <button class="add-btn" type="button" onclick="rc_addReservation()">＋ 予約追加</button>
+      <button class="muted-btn" type="button" onclick="rc_clearAllReservations()">🗑 予約一括削除</button>
+    </div>
+  </div>
+
+  <div class="tableWrap">
+    <table id="rc_resTable">
+      <tr>
+        <th>#</th>
+        <th>タイプ</th>
+        <th>内容</th>
+        <th>人数</th>
+        <th>単価（円/人）</th>
+        <th>小計（円）</th>
+        <th>メモ</th>
+        <th>削除</th>
+      </tr>
+    </table>
+  </div>
 
   <div class="small">
     ※予約（この一覧）は保存しません。更新・再起動で消えます（コース/席のみ単価は保存されます）。
@@ -148,61 +392,127 @@ hr.sep { border:none; border-top:1px solid #ddd; margin:12px 0; }
 
   <hr class="sep">
 
-  <h3>③ 予約集計</h3>
+  <div class="sectionTitle">
+    <h3>③ 予約集計</h3>
+  </div>
+
   <div class="result" id="rc_totalResult">予約見込み売上合計：0 円</div>
   <div id="rc_breakdown" class="small"></div>
-  <div class="row" style="margin-top:10px;">
+
+  <div class="actions" style="margin-top:10px;">
     <button class="ok-btn" type="button" onclick="rc_copySummary()">📋 予約集計をコピー</button>
-    <span class="small">※テキスト形式でクリップボードにコピー</span>
   </div>
+  <div class="small">※テキスト形式でクリップボードにコピー</div>
 </div>
 
 <!-- ===== 勤務パターン ===== -->
 <div class="box">
-<h3>① 勤務パターン登録（保存）</h3>
-名前 <input id="pName">
-開始 <input type="time" id="pStart">
-終了 <input type="time" id="pEnd">
-人数 <input type="number" id="pCount" value="1" style="width:60px">
-ポジション
-<select id="pPos">
-  <option value="ホール">ホール</option>
-  <option value="キッチン">キッチン</option>
-  <option value="その他">その他</option>
-</select>
-<button class="add-btn" onclick="addPattern()">追加</button>
-<button class="reset-btn" onclick="clearAllPatterns()">🗑 一括削除</button>
+  <div class="sectionTitle">
+    <h3>① 勤務パターン登録（保存）</h3>
+  </div>
 
-<table id="patternTable">
-<tr><th>名前</th><th>開始</th><th>終了</th><th>人数</th><th>ポジション</th><th>操作</th></tr>
-</table>
+  <div class="row">
+    <div class="field" style="flex:1 1 220px;">
+      <label>名前</label>
+      <input id="pName">
+    </div>
+
+    <div class="field" style="max-width:210px;">
+      <label>開始</label>
+      <input type="time" id="pStart">
+    </div>
+
+    <div class="field" style="max-width:210px;">
+      <label>終了</label>
+      <input type="time" id="pEnd">
+    </div>
+
+    <div class="field" style="max-width:160px;">
+      <label>人数</label>
+      <input type="number" id="pCount" value="1">
+    </div>
+
+    <div class="field" style="max-width:200px;">
+      <label>ポジション</label>
+      <select id="pPos">
+        <option value="ホール">ホール</option>
+        <option value="キッチン">キッチン</option>
+        <option value="その他">その他</option>
+      </select>
+    </div>
+
+    <div class="actions" style="flex:1 1 320px;">
+      <button class="add-btn" onclick="addPattern()">追加</button>
+      <button class="reset-btn" onclick="clearAllPatterns()">🗑 一括削除</button>
+    </div>
+  </div>
+
+  <div class="tableWrap">
+    <table id="patternTable">
+      <tr><th>名前</th><th>開始</th><th>終了</th><th>人数</th><th>ポジション</th><th>操作</th></tr>
+    </table>
+  </div>
 </div>
 
 <!-- ===== アルバイト入力 ===== -->
 <div class="box">
-<h3>② アルバイト出勤入力</h3>
-<table id="timeTable">
-<tr>
-<th>#</th><th>削除</th><th>パターン</th><th>ポジション</th>
-<th>出勤</th><th>退勤</th>
-<th>拘束</th><th>休憩(分)</th><th>実働</th><th>人件費</th>
-</tr>
-</table>
-<button class="add-btn" onclick="addRow()">＋ 行追加</button>
-<button class="reset-btn" onclick="clearAllRows()">🗑 一括削除</button>
+  <div class="sectionTitle">
+    <h3>② アルバイト出勤入力</h3>
+  </div>
+
+  <!-- ★案A：クイック追加（パターン選択＋人数指定） -->
+  <div class="quickCard">
+    <div class="quickGrid">
+      <div class="field" style="min-width:240px;">
+        <label>クイック追加：パターン</label>
+        <select id="ab_quickPattern"></select>
+      </div>
+
+      <div class="field" style="max-width:140px;">
+        <label>人数</label>
+        <input type="number" id="ab_quickPeople" value="1" min="1">
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top:10px;">
+      <button class="add-btn" type="button" onclick="ab_quickAddSelected()">＋ まとめて追加</button>
+    </div>
+
+    <div class="hint">※「人数」は、パターン登録の人数とは別に “今だけ” まとめて足す用</div>
+  </div>
+
+  <!-- ★案B：パターン横ボタン（ワンタップ追加） -->
+  <div class="chipsRow" id="ab_patternChips"></div>
+  <div class="hint" id="ab_patternHint"></div>
+
+  <div class="tableWrap">
+    <table id="timeTable">
+      <tr>
+        <th>#</th><th>削除</th><th>パターン</th><th>ポジション</th>
+        <th>出勤</th><th>退勤</th>
+        <th>拘束</th><th>休憩(分)</th><th>実働</th><th>人件費</th>
+      </tr>
+    </table>
+  </div>
+
+  <div class="actions" style="margin-top:10px;">
+    <button class="add-btn" onclick="addRow()">＋ 行追加</button>
+    <button class="reset-btn" onclick="clearAllRows()">🗑 一括削除</button>
+  </div>
 </div>
 
 <div class="box">
-<button class="calc-btn" onclick="calc()">計算する</button>
-<p class="result" id="result"></p>
+  <div class="actions">
+    <button class="calc-btn" onclick="calc()" style="flex:1 1 100%;">計算する</button>
+  </div>
+  <p class="result" id="result"></p>
 </div>
 
 <script>
 /* =========================
-   BASE J = BASE I を正として
-   変更点：予約（②予約入力の行データ）を localStorage 保存しない
-   - 席のみ単価/コース/自動反映設定は保存
-   - 予約一覧はメモリ上のみ（更新で消える）
+   BASE K
+   追加：②アルバイト出勤入力の追加導線（案A + 案B）
+   ※既存の addRow / addByPattern を呼ぶだけ
    ========================= */
 
 /* ===== BASE（人件費側） ===== */
@@ -223,7 +533,22 @@ const els = {
   patternTable: $("patternTable"),
   timeTable: $("timeTable"),
   result: $("result"),
+
+  /* ★追加UI */
+  abQuickPattern: $("ab_quickPattern"),
+  abQuickPeople: $("ab_quickPeople"),
+  abPatternChips: $("ab_patternChips"),
+  abPatternHint: $("ab_patternHint"),
 };
+
+function esc(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
 
 function adjustSales(delta){
   let v = Number(els.sales.value || 0);
@@ -238,6 +563,9 @@ function loadPatterns(){
   if(d){
     patterns = JSON.parse(d);
     renderPatterns();
+  }else{
+    // パターンが無い場合でも、クイックUIの「ヒント表示」を出したいのでここで反映
+    ab_renderQuickUI();
   }
 }
 function saveWage(){ localStorage.setItem("baseWage", els.wage.value); }
@@ -272,6 +600,67 @@ function adjustRest(btn, delta){
   let v = Number(input.value || 0) + delta;
   if(v < 0) v = 0;
   input.value = v;
+}
+
+/* =========================
+   ★案A + 案B：追加導線
+   ========================= */
+function ab_renderQuickUI(){
+  // クイック追加のselect
+  let html = `<option value="">--パターン選択--</option>`;
+  for(let i=0;i<patterns.length;i++){
+    const p = patterns[i];
+    html += `<option value="${i}">${esc(p.name)}（${p.start}-${p.end} / ${p.pos}）</option>`;
+  }
+  els.abQuickPattern.innerHTML = html;
+
+  // チップ
+  els.abPatternChips.innerHTML = "";
+  if(patterns.length === 0){
+    els.abPatternHint.textContent = "※まずは「① 勤務パターン登録」でパターンを登録すると、ここにワンタップ追加が出ます。";
+    return;
+  }
+  els.abPatternHint.textContent = "（ワンタップ追加：＋人数＝登録人数分、＋1＝1人分）";
+
+  for(let i=0;i<patterns.length;i++){
+    const p = patterns[i];
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    chip.innerHTML = `
+      <div class="chipName">${esc(p.name)}</div>
+      <div class="chipBtns">
+        <button type="button" class="b1" onclick="addByPattern(${i})">＋人数(${p.count})</button>
+        <button type="button" class="b2" onclick="ab_addOne(${i})">＋1</button>
+      </div>
+    `;
+    els.abPatternChips.appendChild(chip);
+  }
+}
+
+function ab_addOne(i){
+  const p = patterns[i];
+  if(!p) return;
+  addRow(p.start, p.end, i, p.pos);
+}
+
+function ab_quickAddSelected(){
+  const idx = els.abQuickPattern.value;
+  if(idx === ""){
+    alert("パターンを選択してください");
+    return;
+  }
+  let n = Number(els.abQuickPeople.value || 1);
+  n = Math.floor(n);
+  if(!(n > 0)) n = 1;
+
+  const p = patterns[Number(idx)];
+  if(!p){
+    alert("パターンが見つかりません");
+    return;
+  }
+  for(let c=0;c<n;c++){
+    addRow(p.start, p.end, Number(idx), p.pos);
+  }
 }
 
 /* パターン管理 */
@@ -335,6 +724,9 @@ function renderPatterns(){
   for(let i=0;i<selects.length;i++){
     fillSelect(selects[i]);
   }
+
+  // ★追加UIも同期
+  ab_renderQuickUI();
 }
 
 function fillSelect(sel){
@@ -1017,6 +1409,9 @@ window.onload = function(){
   rc_renderReservations(); // 初期は空
   rc_syncResTypeUI();
   rc_recalc();
+
+  // ★追加UI：パターン未登録でもヒントを出す
+  ab_renderQuickUI();
 };
 </script>
 
