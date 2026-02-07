@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>日次 人件費管理ツール（BASE J）</title>
+<style>
+/* ===== BASE I 既存 ===== */
+body { font-family: "Segoe UI", sans-serif; background:#f4f6f8; padding:20px; }
+.box { background:#fff; padding:15px; border-radius:10px; margin-bottom:15px; box-shadow:0 2px 5px rgba(0,0,0,0.05); }
+input, select { padding:6px; margin:4px; }
+button { padding:6px 12px; border:none; border-radius:6px; cursor:pointer; }
+.add-btn { background:#3498db; color:#fff; }
+.calc-btn { background:#2ecc71; color:#fff; font-size:16px; }
+.pattern-btn { background:#9b59b6; color:#fff; }
+.delete-btn { background:#e74c3c; color:#fff; }
+.row-delete { background:#c0392b; color:#fff; }
+.reset-btn { background:#555; color:#fff; margin-left:10px; }
+table { border-collapse: collapse; width:100%; }
+th,td { padding:6px; border:1px solid #ccc; text-align:center; }
+th { background:#eee; }
+.result { font-size:18px; font-weight:bold; }
+.good { color:#2ecc71; }
+.bad { color:#e74c3c; }
+.restInput { width:70px; text-align:center; }
+.restBtn { width:28px; height:28px; padding:0; margin:0 0 0 4px; border-radius:6px; background:#777; color:#fff; font-weight:bold; line-height:28px; }
+.restBtn:hover { filter:brightness(1.1); }
+.restWrap { display:inline-flex; align-items:center; justify-content:center; gap:4px; }
+.restBtnCol { display:flex; flex-direction:column; gap:4px; }
+
+/* 売上±10万ボタン */
+.salesBtn { background:#777; color:#fff; border-radius:6px; padding:6px 10px; margin-left:6px; }
+.salesBtn:hover { filter:brightness(1.1); }
+
+/* ===== 予約カウント（統合部） ===== */
+.row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.small { font-size: 12px; color:#555; }
+.right { text-align:right; }
+.left { text-align:left; }
+.nowrap { white-space:nowrap; }
+.muted-btn { background:#666; color:#fff; }
+.ok-btn { background:#2ecc71; color:#fff; }
+.warn { color:#e74c3c; font-weight:bold; }
+hr.sep { border:none; border-top:1px solid #ddd; margin:12px 0; }
+</style>
+</head>
+<body>
+
+<h1>📊 日次 人件費管理ツール</h1>
+
+<div class="box">
+見込み売上：
+<input type="number" id="sales" value="0"> 円
+<button type="button" class="salesBtn" onclick="adjustSales(100000)">＋10万</button>
+<button type="button" class="salesBtn" onclick="adjustSales(-100000)">－10万</button>
+　
+共通時給：
+<input type="number" id="wage" value="1200" onchange="saveWage()"> 円
+<br>
+社員（ホール）：
+<input type="number" id="staffHall" value="0"> 人　
+社員（キッチン）：
+<input type="number" id="staffKitchen" value="0"> 人　
+（各 ×16,500円）
+<br>
+🎯 目標人件費率：
+<input type="number" id="targetRate" value="25" step="0.1" onchange="saveTargetRate()"> %
+</div>
+
+<!-- ===== 予約カウント（統合） ===== -->
+<div class="box">
+  <h3>🧾 予約カウント（見込み売上の内訳）</h3>
+
+  <div class="row">
+    席のみ 見込み客単価：
+    <input type="number" id="rc_seatUnit" value="4000" step="1"> 円 / 人
+    <button class="ok-btn" type="button" onclick="rc_saveSeatUnit()">保存</button>
+
+    <button class="pattern-btn" type="button" onclick="rc_applyTotalToSales()">↪ 予約合計を見込み売上へ反映</button>
+
+    <label class="small">
+      <input type="checkbox" id="rc_autoApply" onchange="rc_onToggleAutoApply()">
+      自動反映
+    </label>
+  </div>
+
+  <div class="small">
+    ※ここは「見込み売上の作成補助」。BASE H の計算自体は従来どおり見込み売上欄を参照（手入力もOK）。
+  </div>
+
+  <hr class="sep">
+
+  <h3>① コース登録（保存）</h3>
+  <div class="row">
+    コース名 <input id="rc_courseName" placeholder="例：飲み放題付きコース">
+    金額 <input type="number" id="rc_coursePrice" placeholder="例：5500"> 円 / 人
+    <button class="add-btn" type="button" onclick="rc_addCourse()">追加</button>
+    <button class="muted-btn" type="button" onclick="rc_clearAllCourses()">🗑 コース一括削除</button>
+  </div>
+
+  <table id="rc_courseTable">
+    <tr>
+      <th>コース名</th>
+      <th>金額（円/人）</th>
+      <th>予約に追加</th>
+      <th>操作</th>
+    </tr>
+  </table>
+
+  <hr class="sep">
+
+  <h3>② 予約入力（※保存しない）</h3>
+  <div class="row">
+    予約タイプ
+    <select id="rc_resType" onchange="rc_syncResTypeUI()">
+      <option value="course">コース</option>
+      <option value="seat">席のみ</option>
+    </select>
+
+    <span id="rc_coursePickWrap">
+      コース
+      <select id="rc_resCourse"></select>
+    </span>
+
+    人数 <input type="number" id="rc_resPeople" value="2" min="1" style="width:80px;">
+    メモ <input id="rc_resMemo" placeholder="例：19:00 / 会社宴会" style="min-width:240px;">
+
+    <button class="add-btn" type="button" onclick="rc_addReservation()">＋ 予約追加</button>
+    <button class="muted-btn" type="button" onclick="rc_clearAllReservations()">🗑 予約一括削除</button>
+  </div>
+
+  <table id="rc_resTable">
+    <tr>
+      <th>#</th>
+      <th>タイプ</th>
+      <th>内容</th>
+      <th>人数</th>
+      <th>単価（円/人）</th>
+      <th>小計（円）</th>
+      <th>メモ</th>
+      <th>削除</th>
+    </tr>
+  </table>
+
+  <div class="small">
+    ※予約（この一覧）は保存しません。更新・再起動で消えます（コース/席のみ単価は保存されます）。
+  </div>
+
+  <hr class="sep">
+
+  <h3>③ 予約集計</h3>
+  <div class="result" id="rc_totalResult">予約見込み売上合計：0 円</div>
+  <div id="rc_breakdown" class="small"></div>
+  <div class="row" style="margin-top:10px;">
+    <button class="ok-btn" type="button" onclick="rc_copySummary()">📋 予約集計をコピー</button>
+    <span class="small">※テキスト形式でクリップボードにコピー</span>
+  </div>
+</div>
+
+<!-- ===== 勤務パターン ===== -->
+<div class="box">
+<h3>① 勤務パターン登録（保存）</h3>
+名前 <input id="pName">
+開始 <input type="time" id="pStart">
+終了 <input type="time" id="pEnd">
+人数 <input type="number" id="pCount" value="1" style="width:60px">
+ポジション
+<select id="pPos">
+  <option value="ホール">ホール</option>
+  <option value="キッチン">キッチン</option>
+  <option value="その他">その他</option>
+</select>
+<button class="add-btn" onclick="addPattern()">追加</button>
+<button class="reset-btn" onclick="clearAllPatterns()">🗑 一括削除</button>
+
+<table id="patternTable">
+<tr><th>名前</th><th>開始</th><th>終了</th><th>人数</th><th>ポジション</th><th>操作</th></tr>
+</table>
+</div>
+
+<!-- ===== アルバイト入力 ===== -->
+<div class="box">
+<h3>② アルバイト出勤入力</h3>
+<table id="timeTable">
+<tr>
+<th>#</th><th>削除</th><th>パターン</th><th>ポジション</th>
+<th>出勤</th><th>退勤</th>
+<th>拘束</th><th>休憩(分)</th><th>実働</th><th>人件費</th>
+</tr>
+</table>
+<button class="add-btn" onclick="addRow()">＋ 行追加</button>
+<button class="reset-btn" onclick="clearAllRows()">🗑 一括削除</button>
+</div>
+
+<div class="box">
+<button class="calc-btn" onclick="calc()">計算する</button>
+<p class="result" id="result"></p>
+</div>
+
+<script>
+/* =========================
+   BASE J = BASE I を正として
+   変更点：予約（②予約入力の行データ）を localStorage 保存しない
+   - 席のみ単価/コース/自動反映設定は保存
+   - 予約一覧はメモリ上のみ（更新で消える）
+   ========================= */
+
+/* ===== BASE（人件費側） ===== */
+let patterns = [];
+const $ = (id)=>document.getElementById(id);
+
+const els = {
+  sales: $("sales"),
+  wage: $("wage"),
+  staffHall: $("staffHall"),
+  staffKitchen: $("staffKitchen"),
+  targetRate: $("targetRate"),
+  pName: $("pName"),
+  pStart: $("pStart"),
+  pEnd: $("pEnd"),
+  pCount: $("pCount"),
+  pPos: $("pPos"),
+  patternTable: $("patternTable"),
+  timeTable: $("timeTable"),
+  result: $("result"),
+};
+
+function adjustSales(delta){
+  let v = Number(els.sales.value || 0);
+  v += delta;
+  if(v < 0) v = 0;
+  els.sales.value = v;
+}
+
+function savePatterns(){ localStorage.setItem("workPatterns", JSON.stringify(patterns)); }
+function loadPatterns(){
+  const d = localStorage.getItem("workPatterns");
+  if(d){
+    patterns = JSON.parse(d);
+    renderPatterns();
+  }
+}
+function saveWage(){ localStorage.setItem("baseWage", els.wage.value); }
+function loadWage(){
+  const w = localStorage.getItem("baseWage");
+  if(w) els.wage.value = w;
+}
+function saveTargetRate(){ localStorage.setItem("targetRate", els.targetRate.value); }
+function loadTargetRate(){
+  const t = localStorage.getItem("targetRate");
+  if(t) els.targetRate.value = t;
+}
+
+function clearAllRows(){
+  if(!confirm("アルバイト入力を全て削除しますか？")) return;
+  const table = els.timeTable;
+  while(table.rows.length > 1){
+    table.deleteRow(1);
+  }
+}
+
+function clearAllPatterns(){
+  if(!confirm("勤務パターンを全て削除しますか？（保存データも消えます）")) return;
+  patterns = [];
+  savePatterns();
+  renderPatterns();
+}
+
+function adjustRest(btn, delta){
+  const row = btn.closest("tr");
+  const input = row.querySelector(".rest");
+  let v = Number(input.value || 0) + delta;
+  if(v < 0) v = 0;
+  input.value = v;
+}
+
+/* パターン管理 */
+function addPattern(){
+  const name = els.pName.value;
+  const start = els.pStart.value;
+  const end = els.pEnd.value;
+  const count = Number(els.pCount.value);
+
+  if(!name || !start || !end || count <= 0){
+    alert("全部入力して"); return;
+  }
+
+  patterns.push({
+    name: name,
+    start: start,
+    end: end,
+    count: count,
+    pos: els.pPos.value
+  });
+
+  savePatterns();
+  renderPatterns();
+
+  els.pName.value = "";
+  els.pStart.value = "";
+  els.pEnd.value = "";
+  els.pCount.value = 1;
+}
+
+function deletePattern(i){
+  if(!confirm("このパターンを削除しますか？")) return;
+  patterns.splice(i,1);
+  savePatterns();
+  renderPatterns();
+}
+
+function renderPatterns(){
+  const header = "<tr><th>名前</th><th>開始</th><th>終了</th><th>人数</th><th>ポジション</th><th>操作</th></tr>";
+  let html = header;
+
+  for(let i=0;i<patterns.length;i++){
+    const p = patterns[i];
+    html += `
+    <tr>
+      <td>${p.name}</td>
+      <td>${p.start}</td>
+      <td>${p.end}</td>
+      <td>${p.count}</td>
+      <td>${p.pos}</td>
+      <td>
+        <button class="pattern-btn" onclick="addByPattern(${i})">人員追加</button>
+        <button class="delete-btn" onclick="deletePattern(${i})">削除</button>
+      </td>
+    </tr>`;
+  }
+
+  els.patternTable.innerHTML = html;
+
+  const selects = document.querySelectorAll(".patternSelect");
+  for(let i=0;i<selects.length;i++){
+    fillSelect(selects[i]);
+  }
+}
+
+function fillSelect(sel){
+  let html = `<option value="">--選択--</option>`;
+  for(let i=0;i<patterns.length;i++){
+    html += `<option value="${i}">${patterns[i].name}</option>`;
+  }
+  sel.innerHTML = html;
+}
+
+/* アルバイト行 */
+function addRow(start="", end="", idx="", pos="ホール"){
+  const table = els.timeTable;
+  const r = table.insertRow();
+  const n = table.rows.length - 1;
+
+  r.innerHTML = `
+  <td>${n}</td>
+  <td><button class="row-delete" onclick="deleteRow(this)">削除</button></td>
+  <td><select class="patternSelect" onchange="applyPattern(this)"></select></td>
+  <td>
+    <select class="pos">
+      <option value="ホール">ホール</option>
+      <option value="キッチン">キッチン</option>
+      <option value="その他">その他</option>
+    </select>
+  </td>
+  <td><input type="time" class="start" value="${start}"></td>
+  <td><input type="time" class="end" value="${end}"></td>
+  <td class="raw">0</td>
+  <td>
+    <span class="restWrap">
+      <input type="number" class="rest restInput" value="0">
+      <span class="restBtnCol">
+        <button type="button" class="restBtn" onclick="adjustRest(this, 15)">▲</button>
+        <button type="button" class="restBtn" onclick="adjustRest(this, -15)">▼</button>
+      </span>
+    </span>
+  </td>
+  <td class="work">0</td>
+  <td class="cost">0</td>`;
+
+  const sel = r.querySelector(".patternSelect");
+  fillSelect(sel);
+
+  if(idx !== ""){
+    sel.value = idx;
+    r.querySelector(".pos").value = pos;
+  }
+}
+
+function deleteRow(btn){
+  if(!confirm("この行を削除しますか？")) return;
+  btn.closest("tr").remove();
+  renumberRows();
+}
+
+function renumberRows(){
+  const rows = els.timeTable.rows;
+  for(let i=1;i<rows.length;i++){
+    rows[i].cells[0].innerText = i;
+  }
+}
+
+function addByPattern(i){
+  const p = patterns[i];
+  for(let c=0;c<p.count;c++){
+    addRow(p.start, p.end, i, p.pos);
+  }
+}
+
+function applyPattern(sel){
+  const i = sel.value;
+  if(i === "") return;
+
+  const row = sel.closest("tr");
+  const p = patterns[i];
+
+  row.querySelector(".start").value = p.start;
+  row.querySelector(".end").value = p.end;
+  row.querySelector(".pos").value = p.pos;
+}
+
+/* 計算 */
+function toMin(t){
+  const a = t.charCodeAt(0)*10 + t.charCodeAt(1) - 528;
+  const b = t.charCodeAt(3)*10 + t.charCodeAt(4) - 528;
+  return a*60 + b;
+}
+function autoRestMinutes(rawMin){
+  const h = rawMin / 60;
+  if(h >= 8) return 60;
+  if(h >= 7) return 45;
+  if(h >= 6) return 30;
+  return 0;
+}
+function overlapMinutes(aStart, aEnd, bStart, bEnd){
+  const s = aStart > bStart ? aStart : bStart;
+  const e = aEnd < bEnd ? aEnd : bEnd;
+  return e > s ? (e - s) : 0;
+}
+function calcCostFast(st, en, rest, wagePerHour){
+  const raw = en - st;
+  if(rest < 0) rest = 0;
+  if(rest > raw) rest = raw;
+
+  const paidStart = st + rest;
+  const paidEnd = en;
+
+  const paidMinutes = paidEnd - paidStart;
+  if(paidMinutes <= 0) return { cost: 0, paidMinutes: 0 };
+
+  const overtimeStart = paidStart + 480;
+  const overtimeMinutes = (paidEnd > overtimeStart) ? (paidEnd - overtimeStart) : 0;
+
+  let nightMinutes = 0;
+  const dayStart = Math.floor(paidStart / 1440);
+  const dayEnd = Math.floor((paidEnd - 1) / 1440);
+
+  for(let d = dayStart; d <= dayEnd; d++){
+    const nS = d*1440 + 1320;
+    const nE = d*1440 + 1440;
+    nightMinutes += overlapMinutes(paidStart, paidEnd, nS, nE);
+  }
+
+  let nightOverMinutes = 0;
+  if(overtimeMinutes > 0){
+    const oS = overtimeStart;
+    const oE = paidEnd;
+
+    const odStart = Math.floor(oS / 1440);
+    const odEnd = Math.floor((oE - 1) / 1440);
+    for(let d = odStart; d <= odEnd; d++){
+      const nS = d*1440 + 1320;
+      const nE = d*1440 + 1440;
+      nightOverMinutes += overlapMinutes(oS, oE, nS, nE);
+    }
+  }
+
+  const nightOnlyMinutes = nightMinutes - nightOverMinutes;
+  const overOnlyMinutes = overtimeMinutes - nightOverMinutes;
+  const regularMinutes = paidMinutes - nightOnlyMinutes - overOnlyMinutes - nightOverMinutes;
+
+  const wagePerMin = wagePerHour / 60;
+
+  const cost =
+    (regularMinutes * wagePerMin * 1.0) +
+    ((nightOnlyMinutes + overOnlyMinutes) * wagePerMin * 1.25) +
+    (nightOverMinutes * wagePerMin * 1.5);
+
+  return { cost: cost, paidMinutes: paidMinutes };
+}
+function fmtYen(n){ return Math.round(Number(n || 0)).toLocaleString(); }
+function yenPerHour(sales, hours){ if(!(hours > 0)) return 0; return sales / hours; }
+
+function calc(){
+  let totalWork = 0;
+  let totalCost = 0;
+  const w = Number(els.wage.value);
+
+  let hallCost = 0, kitchenCost = 0, hallH = 0, kitchenH = 0;
+
+  const rows = els.timeTable.rows;
+  for(let i=1;i<rows.length;i++){
+    const row = rows[i];
+
+    const s = row.querySelector(".start").value;
+    const e = row.querySelector(".end").value;
+    if(!s || !e) continue;
+
+    let st = toMin(s);
+    let en = toMin(e);
+    if(en < st) en += 1440;
+
+    const raw = en - st;
+
+    const restInput = row.querySelector(".rest");
+    const restVal = restInput.value;
+    if(restVal === "" || Number(restVal) === 0){
+      restInput.value = autoRestMinutes(raw);
+    }
+
+    const rest = Number(restInput.value);
+    const work = raw - rest;
+
+    row.querySelector(".raw").innerText = (raw/60).toFixed(2);
+    row.querySelector(".work").innerText = (work/60).toFixed(2);
+
+    const cost = calcCostFast(st, en, rest, w).cost;
+
+    row.querySelector(".cost").innerText = fmtYen(cost);
+    totalWork += work/60;
+    totalCost += cost;
+
+    const pos = row.querySelector(".pos").value;
+    if(pos === "ホール"){ hallCost += cost; hallH += work/60; }
+    if(pos === "キッチン"){ kitchenCost += cost; kitchenH += work/60; }
+  }
+
+  const staffHallN = Number(els.staffHall.value);
+  const staffKitchenN = Number(els.staffKitchen.value);
+
+  const staffHallCost = staffHallN * 16500;
+  const staffKitchenCost = staffKitchenN * 16500;
+
+  hallCost += staffHallCost;
+  kitchenCost += staffKitchenCost;
+
+  const total = totalCost + staffHallCost + staffKitchenCost;
+
+  const sales = Number(els.sales.value);
+  const rate = sales > 0 ? (total / sales * 100) : 0;
+
+  const target = Number(els.targetRate.value);
+  const diff = rate - target;
+
+  let judge = "";
+  if(diff <= 0){
+    judge = `<span class="good">✅ 目標内（${diff.toFixed(2)}%）</span>`;
+  }else{
+    const overMoney = sales * (diff/100);
+    const needHour = overMoney / w;
+    judge = `<span class="bad">⚠ 超過 +${diff.toFixed(2)}%</span><br>
+    削減目安：${fmtYen(overMoney)} 円 ／ 約 ${needHour.toFixed(2)} 時間`;
+  }
+
+  const hallHoursInclStaff = hallH + staffHallN * 10;
+  const kitchenHoursInclStaff = kitchenH + staffKitchenN * 10;
+  const totalHoursInclStaff = totalWork + (staffHallN + staffKitchenN) * 10;
+
+  const hallSalesPerHour = yenPerHour(sales, hallHoursInclStaff);
+  const kitchenSalesPerHour = yenPerHour(sales, kitchenHoursInclStaff);
+  const totalSalesPerHour = yenPerHour(sales, totalHoursInclStaff);
+
+  els.result.innerHTML = `
+  人件費率：${rate.toFixed(2)} %（目標 ${target}%）<br>
+  ${judge}<br><br>
+
+  人件費合計：${fmtYen(total)} 円<br><br>
+
+  🧍 ホール：${hallH.toFixed(2)} h / ${fmtYen(hallCost)} 円<br>
+  🍳 キッチン：${kitchenH.toFixed(2)} h / ${fmtYen(kitchenCost)} 円<br><br>
+
+  📌 人時売上高（見込み売上 ÷ 実労働時間）<br>
+  ・ホール：${fmtYen(hallSalesPerHour)} 円 / h（実労働 ${hallHoursInclStaff.toFixed(2)} h ※社員${staffHallN}人×10h含む）<br>
+  ・キッチン：${fmtYen(kitchenSalesPerHour)} 円 / h（実労働 ${kitchenHoursInclStaff.toFixed(2)} h ※社員${staffKitchenN}人×10h含む）<br>
+  ・合算：${fmtYen(totalSalesPerHour)} 円 / h（実労働 ${totalHoursInclStaff.toFixed(2)} h ※社員合計×10h含む）
+  `;
+}
+
+/* =========================
+   予約カウント（変更点：予約は保存しない）
+   ========================= */
+const RC_LS = {
+  seatUnit: "rc_seatUnit",
+  courses: "rc_courses",
+  lastQuickPeople: "rc_lastQuickPeople",
+  autoApply: "rc_autoApply"
+};
+
+let rc_courses = [];       // 保存あり
+let rc_reservations = [];  // ★保存なし（メモリのみ）
+
+const rc = {
+  seatUnit: $("rc_seatUnit"),
+  courseName: $("rc_courseName"),
+  coursePrice: $("rc_coursePrice"),
+  courseTable: $("rc_courseTable"),
+
+  resType: $("rc_resType"),
+  coursePickWrap: $("rc_coursePickWrap"),
+  resCourse: $("rc_resCourse"),
+  resPeople: $("rc_resPeople"),
+  resMemo: $("rc_resMemo"),
+  resTable: $("rc_resTable"),
+
+  totalResult: $("rc_totalResult"),
+  breakdown: $("rc_breakdown"),
+  autoApply: $("rc_autoApply"),
+};
+
+function rc_uid(){ return Math.random().toString(16).slice(2) + Date.now().toString(16); }
+function rc_fmtYen(n){ return Math.round(Number(n || 0)).toLocaleString(); }
+function rc_clampInt(v, min, max){
+  v = Math.floor(Number(v || 0));
+  if(v < min) v = min;
+  if(v > max) v = max;
+  return v;
+}
+function rc_escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
+}
+
+/* 保存/読込（予約は対象外） */
+function rc_saveSeatUnit(){
+  const v = Number(rc.seatUnit.value || 0);
+  localStorage.setItem(RC_LS.seatUnit, String(v));
+  rc_recalc();
+}
+function rc_loadSeatUnit(){
+  const v = localStorage.getItem(RC_LS.seatUnit);
+  if(v !== null) rc.seatUnit.value = v;
+}
+function rc_saveCourses(){ localStorage.setItem(RC_LS.courses, JSON.stringify(rc_courses)); }
+function rc_loadCourses(){
+  const raw = localStorage.getItem(RC_LS.courses);
+  if(!raw) return;
+  try{
+    const arr = JSON.parse(raw);
+    if(Array.isArray(arr)) rc_courses = arr;
+  }catch(e){}
+}
+
+/* 自動反映設定（保存あり） */
+function rc_onToggleAutoApply(){
+  localStorage.setItem(RC_LS.autoApply, rc.autoApply.checked ? "1" : "0");
+  if(rc.autoApply.checked){
+    rc_applyTotalToSales(false);
+  }
+}
+function rc_loadAutoApply(){
+  const v = localStorage.getItem(RC_LS.autoApply);
+  rc.autoApply.checked = (v === "1");
+}
+
+/* コース */
+function rc_addCourse(){
+  const name = (rc.courseName.value || "").trim();
+  const price = Number(rc.coursePrice.value || 0);
+
+  if(!name || !(price > 0)){
+    alert("コース名と金額（0より大きい）を入れてください");
+    return;
+  }
+
+  rc_courses.push({ id: rc_uid(), name, price });
+  rc_saveCourses();
+
+  rc.courseName.value = "";
+  rc.coursePrice.value = "";
+
+  rc_renderCourses();
+  rc_renderCourseSelect();
+  rc_recalc();
+}
+
+function rc_deleteCourse(courseId){
+  if(!confirm("このコースを削除しますか？")) return;
+  rc_courses = rc_courses.filter(c => c.id !== courseId);
+  rc_saveCourses();
+  rc_renderCourses();
+  rc_renderCourseSelect();
+  rc_recalc();
+}
+
+function rc_clearAllCourses(){
+  if(!confirm("コースを全て削除しますか？（保存データも消えます）")) return;
+  rc_courses = [];
+  rc_saveCourses();
+  rc_renderCourses();
+  rc_renderCourseSelect();
+  rc_recalc();
+}
+
+function rc_renderCourses(){
+  rc.courseTable.innerHTML = `
+    <tr>
+      <th>コース名</th>
+      <th>金額（円/人）</th>
+      <th>予約に追加</th>
+      <th>操作</th>
+    </tr>
+  `;
+
+  for(const c of rc_courses){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="left">${rc_escapeHtml(c.name)}</td>
+      <td class="right nowrap">${rc_fmtYen(c.price)}</td>
+      <td>
+        <button class="add-btn" type="button" onclick="rc_quickAddCourse('${c.id}')">＋追加</button>
+      </td>
+      <td>
+        <button class="delete-btn" type="button" onclick="rc_deleteCourse('${c.id}')">削除</button>
+      </td>
+    `;
+    rc.courseTable.appendChild(tr);
+  }
+}
+
+function rc_renderCourseSelect(){
+  rc.resCourse.innerHTML = "";
+  if(rc_courses.length === 0){
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "（コース未登録）";
+    rc.resCourse.appendChild(opt);
+    return;
+  }
+  for(const c of rc_courses){
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = `${c.name}（${rc_fmtYen(c.price)}円/人）`;
+    rc.resCourse.appendChild(opt);
+  }
+}
+
+/* コース表の＋追加：人数prompt */
+function rc_quickAddCourse(courseId){
+  const course = rc_courses.find(c => c.id === courseId);
+  if(!course){
+    alert("コースが見つかりません（削除された可能性）");
+    return;
+  }
+
+  const last = localStorage.getItem(RC_LS.lastQuickPeople);
+  const defPeople = (last !== null && Number(last) > 0) ? String(Math.floor(Number(last))) : "2";
+
+  const input = prompt(`人数を入力してください（${course.name}）`, defPeople);
+  if(input === null) return;
+
+  const people = rc_clampInt(Number(input), 1, 999);
+  if(!(people > 0)){
+    alert("人数が正しくありません");
+    return;
+  }
+  localStorage.setItem(RC_LS.lastQuickPeople, String(people));
+
+  rc_reservations.push({
+    id: rc_uid(),
+    type: "course",
+    courseId: course.id,
+    people,
+    unit: course.price,
+    memo: (rc.resMemo.value || "").trim()
+  });
+
+  rc_renderReservations();
+  rc_recalc();
+}
+
+/* 予約入力 */
+function rc_syncResTypeUI(){
+  const t = rc.resType.value;
+  rc.coursePickWrap.style.display = (t === "course") ? "inline-flex" : "none";
+}
+
+function rc_addReservation(){
+  const type = rc.resType.value;
+  const people = rc_clampInt(Number(rc.resPeople.value || 1), 1, 999);
+  const memo = (rc.resMemo.value || "").trim();
+
+  if(type === "course"){
+    const courseId = rc.resCourse.value;
+    const course = rc_courses.find(c => c.id === courseId);
+    if(!course){
+      alert("コースを選択してください（未登録の場合は先に登録）");
+      return;
+    }
+    rc_reservations.push({
+      id: rc_uid(),
+      type: "course",
+      courseId: course.id,
+      people,
+      unit: course.price,
+      memo
+    });
+  }else{
+    const unit = Number(rc.seatUnit.value || 0);
+    if(!(unit > 0)){
+      alert("席のみ客単価が0です。設定してください。");
+      return;
+    }
+    rc_reservations.push({
+      id: rc_uid(),
+      type: "seat",
+      courseId: "",
+      people,
+      unit,
+      memo
+    });
+  }
+
+  rc_renderReservations();
+  rc_recalc();
+}
+
+function rc_deleteReservation(resId){
+  if(!confirm("この予約を削除しますか？")) return;
+  rc_reservations = rc_reservations.filter(r => r.id !== resId);
+  rc_renderReservations();
+  rc_recalc();
+}
+
+function rc_clearAllReservations(){
+  if(!confirm("予約を全て削除しますか？（この画面の入力だけ消えます）")) return;
+  rc_reservations = [];
+  rc_renderReservations();
+  rc_recalc();
+}
+
+function rc_renderReservations(){
+  rc.resTable.innerHTML = `
+    <tr>
+      <th>#</th>
+      <th>タイプ</th>
+      <th>内容</th>
+      <th>人数</th>
+      <th>単価（円/人）</th>
+      <th>小計（円）</th>
+      <th>メモ</th>
+      <th>削除</th>
+    </tr>
+  `;
+
+  rc_reservations.forEach((r, idx) => {
+    const tr = document.createElement("tr");
+
+    let typeLabel = (r.type === "course") ? "コース" : "席のみ";
+    let detail = "";
+    if(r.type === "course"){
+      const c = rc_courses.find(x => x.id === r.courseId);
+      detail = c ? c.name : "（削除済コース）";
+    }else{
+      detail = "席のみ";
+    }
+
+    const people = rc_clampInt(Number(r.people || 0), 0, 9999);
+    const unit = Number(r.unit || 0);
+    const subtotal = people * unit;
+
+    tr.innerHTML = `
+      <td>${idx + 1}</td>
+      <td class="nowrap">${typeLabel}</td>
+      <td class="left">${rc_escapeHtml(detail)}</td>
+      <td class="right">${people}</td>
+      <td class="right nowrap">${rc_fmtYen(unit)}</td>
+      <td class="right nowrap">${rc_fmtYen(subtotal)}</td>
+      <td class="left">${rc_escapeHtml(r.memo || "")}</td>
+      <td><button class="delete-btn" type="button" onclick="rc_deleteReservation('${r.id}')">削除</button></td>
+    `;
+    rc.resTable.appendChild(tr);
+  });
+}
+
+/* 集計 */
+function rc_getTotal(){
+  let total = 0;
+  for(const r of rc_reservations){
+    const people = rc_clampInt(Number(r.people || 0), 0, 999999);
+    const unit = Number(r.unit || 0);
+    total += people * unit;
+  }
+  return total;
+}
+
+function rc_recalc(){
+  let total = 0;
+
+  const byCourse = new Map();
+  let seatSubtotal = 0;
+  let seatPeople = 0;
+
+  for(const r of rc_reservations){
+    const people = rc_clampInt(Number(r.people || 0), 0, 999999);
+    const unit = Number(r.unit || 0);
+    const subtotal = people * unit;
+    total += subtotal;
+
+    if(r.type === "seat"){
+      seatSubtotal += subtotal;
+      seatPeople += people;
+    }else{
+      const c = rc_courses.find(x => x.id === r.courseId);
+      const name = c ? c.name : "（削除済コース）";
+      const key = r.courseId || "deleted_course";
+      const cur = byCourse.get(key) || { name, subtotal: 0, people: 0 };
+      cur.subtotal += subtotal;
+      cur.people += people;
+      cur.name = name;
+      byCourse.set(key, cur);
+    }
+  }
+
+  rc.totalResult.textContent = `予約見込み売上合計：${rc_fmtYen(total)} 円`;
+
+  let html = "";
+  if(rc_reservations.length === 0){
+    html = `<div class="warn">※予約がまだありません</div>`;
+  }else{
+    html += `<div>内訳：</div><ul style="margin:6px 0 0 18px;">`;
+
+    const courseItems = Array.from(byCourse.values()).sort((a,b)=> b.subtotal - a.subtotal);
+    for(const item of courseItems){
+      html += `<li>コース：${rc_escapeHtml(item.name)} … ${item.people}名 / ${rc_fmtYen(item.subtotal)}円</li>`;
+    }
+
+    html += `<li>席のみ … ${seatPeople}名 / ${rc_fmtYen(seatSubtotal)}円（単価 ${rc_fmtYen(Number(rc.seatUnit.value||0))}円/人）</li>`;
+    html += `</ul>`;
+  }
+  rc.breakdown.innerHTML = html;
+
+  if(rc.autoApply.checked){
+    rc_applyTotalToSales(false);
+  }
+}
+
+function rc_applyTotalToSales(showAlert=true){
+  const total = rc_getTotal();
+  els.sales.value = total;
+  if(showAlert) alert("予約合計を見込み売上に反映しました");
+}
+
+function rc_copySummary(){
+  const seatUnit = Number(rc.seatUnit.value || 0);
+  let total = 0;
+
+  const byCourse = new Map();
+  let seatSubtotal = 0;
+  let seatPeople = 0;
+
+  for(const r of rc_reservations){
+    const people = rc_clampInt(Number(r.people || 0), 0, 999999);
+    const unit = Number(r.unit || 0);
+    const subtotal = people * unit;
+    total += subtotal;
+
+    if(r.type === "seat"){
+      seatSubtotal += subtotal;
+      seatPeople += people;
+    }else{
+      const c = rc_courses.find(x => x.id === r.courseId);
+      const name = c ? c.name : "（削除済コース）";
+      const key = r.courseId || "deleted_course";
+      const cur = byCourse.get(key) || { name, subtotal: 0, people: 0 };
+      cur.subtotal += subtotal;
+      cur.people += people;
+      cur.name = name;
+      byCourse.set(key, cur);
+    }
+  }
+
+  let lines = [];
+  lines.push(`【予約カウント】`);
+  lines.push(`見込み売上合計：${rc_fmtYen(total)}円`);
+  lines.push(`--- 内訳 ---`);
+
+  const courseItems = Array.from(byCourse.values()).sort((a,b)=> b.subtotal - a.subtotal);
+  for(const item of courseItems){
+    lines.push(`コース：${item.name} … ${item.people}名 / ${rc_fmtYen(item.subtotal)}円`);
+  }
+  lines.push(`席のみ … ${seatPeople}名 / ${rc_fmtYen(seatSubtotal)}円（単価 ${rc_fmtYen(seatUnit)}円/人）`);
+
+  const text = lines.join("\n");
+
+  navigator.clipboard.writeText(text)
+    .then(()=> alert("コピーしました"))
+    .catch(()=> alert("コピーに失敗しました（ブラウザの権限設定を確認）"));
+}
+
+/* ===== init ===== */
+window.onload = function(){
+  // 人件費側
+  loadPatterns();
+  loadWage();
+  loadTargetRate();
+
+  // 予約側（予約は保存しないので loadなし）
+  rc_loadAutoApply();
+  rc_loadSeatUnit();
+  rc_loadCourses();
+
+  rc_renderCourses();
+  rc_renderCourseSelect();
+  rc_renderReservations(); // 初期は空
+  rc_syncResTypeUI();
+  rc_recalc();
+};
+</script>
+
+</body>
+</html>
